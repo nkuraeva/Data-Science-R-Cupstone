@@ -1,0 +1,157 @@
+title: "Data Science Specialization - Capstone.Rmd"
+author: "Natalia Kuraeva"
+date: "9/09/2021"
+output: html_document
+
+##  Milestone Report
+
+The goal of this project is creating a Shiny app that takes as input a phrase (multiple words) in a text box input and outputs a prediction of the next word.
+This Report contains information about the input data (including their preliminary analysis) and an approximate list of steps that I plan to take in the further implementation of the project.
+
+### Preparing and loading data
+
+```{r, warning=FALSE, error=FALSE}
+# Load the required libraries (in current versions as of the date of the report writing)
+library(NLP)
+library(tm)
+library(RColorBrewer)
+library(wordcloud)
+library(dplyr)
+library(corpus)
+library(stringi)
+library(ggplot2)
+```
+
+The data used in the work can be found at the link https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip. I put them in the project and use them directly from the working directory
+
+```{r}
+# File path
+file.blogs <- "en_US/en_US.blogs.txt" # blog.txt file
+file.twitter <- "en_US/en_US.twitter.txt" # twitter.txt file
+file.news <- "en_US/en_US.news.txt" # news.txt file
+```
+```{r}
+# Get file sizes. This information will be useful to us later.
+blogs.size <- file.info(file.blogs)$size / 1024 ^ 2
+news.size <- file.info(file.news)$size / 1024 ^ 2
+twitter.size <- file.info(file.twitter)$size / 1024 ^ 2
+```
+Let's read the files and see the main summary statistics for them.
+```{r}
+# read files
+connect <- file(file.blogs, open="rb")
+blogs <- readLines(connect, encoding="UTF-8"); close(connect)
+connect <- file(file.twitter, open="rb")
+twitter <- readLines(connect, encoding="UTF-8"); close(connect)
+connect <- file(file.news, open="rb")
+news <- readLines(connect, encoding="UTF-8"); close(connect)
+rm(connect)
+# get summary
+summaryData <- sapply(list(blogs,news,twitter),function(x) summary(stri_count_words(x))[c('Min.','Mean','Max.')])
+rownames(summaryData) <- c('Min','Mean','Max')
+
+# create statistic data set
+stats <- data.frame(
+  FileName=c("en_US.blogs","en_US.news","en_US.twitter"),      
+  t(rbind(sapply(list(blogs,news,twitter),stri_stats_general)[c('Lines','Chars'),],  Words=sapply(list(blogs,news,twitter),stri_stats_latex)['Words',], summaryData)))
+head(stats)
+```
+
+```{r}
+# Summary of dataset
+summary_dataset <- data.frame(Doc = c("blogs", "news", "twitter"), Size.MB = c(blogs.size, news.size, twitter.size), Num.Lines = c(length(blogs), length(news), length(twitter)), Num.Words=c(sum(nchar(blogs)), sum(nchar(news)), sum(nchar(twitter))))
+summary_dataset
+```
+Since these data are pretty big in size and we only have limited computer memory to process them, we have to sample the data first and then clean the data a bit. In terms of sampling the data, I am going to take 1% of each data set to ensure the memory of my machine is sufficient to effectively process the data. I have tried taking 10% but the memory of my machine failed to process it so I had to go for a smaller chunk of the data.(1.7GB). However, I do not exclude the possibility that in the future, when assessing the effectiveness of the constructed model, the size of the selection will still be increased. 
+
+### Creating a dataset to be used in the study.
+```{r}
+set.seed(123) # Since I am going to use the shuffle feature, I am setting the seed for future reproducibility.
+# Sampling
+sampleBlogs <- blogs[sample(1:length(blogs), 0.01*length(blogs), replace=FALSE)]
+sampleNews <- news[sample(1:length(news), 0.01*length(news), replace=FALSE)]
+sampleTwitter <- twitter[sample(1:length(twitter), 0.01*length(twitter), replace=FALSE)]
+# Cleaning
+sampleBlogs <- iconv(sampleBlogs, "UTF-8", "ASCII", sub="")
+sampleNews <- iconv(sampleNews, "UTF-8", "ASCII", sub="")
+sampleTwitter <- iconv(sampleTwitter, "UTF-8", "ASCII", sub="")
+data.sample <- c(sampleBlogs,sampleNews,sampleTwitter)
+```
+
+Now that we have sampled our data and combined all three of the data sets into one. We will go ahead and build the corpus which will be used to build the data matrix term later. In this section, we will also apply some more cleaning process to remove lowercase, punctuation, numbers and whitespace.
+```{r}
+build_corpus <- function (x = data.sample) {
+  sample_c <- VCorpus(VectorSource(x)) # Create corpus dataset
+  sample_c <- tm_map(sample_c, content_transformer(tolower)) # all lowercase
+  sample_c <- tm_map(sample_c, removePunctuation) # Eleminate punctuation
+  sample_c <- tm_map(sample_c, removeNumbers) # Eliminate numbers
+  sample_c <- tm_map(sample_c, stripWhitespace) # Strip Whitespace
+}
+corpusData <- build_corpus(data.sample)
+```
+
+### Tokenize and build n-grams. 
+I found several ways to do tokenization, and I chose the easiest and fastest in my opinion. Perhaps I will try other libraries and functions ("rWeka", "ngram") intended for tokenization in the future, if it helps to improve the quality of the final model. 
+```{r}
+#create term-document matrix tokenized on n-grams
+ObservationData <- list(3)
+for (i in 1:3) {
+  ObservationData[[i]] <- term_stats(corpusData, ngrams = i)
+}
+```
+In this section, I build unigram, bi-gram and tri-gram models for the data and will give sense of distributions of the words through histograms
+Build Wordcloud
+Let’s plot wordclouds and histograms to see word frequencies
+```{r}
+# funktion for building word clowds
+WCloud <- function(x, i) {
+                wordcloud(words = ObservationData[[i]]$term, freq = ObservationData[[i]]$count, scale = c(3,1), max.words=100, random.order=FALSE, rot.per=0, fixed.asp = TRUE, use.r.layout = FALSE, colors=brewer.pal(8, "Dark2"))
+}
+# Build function for histograms
+plot.Grams <- function (x, i, name, N, colorbar) {
+        ggplot(data = head(x[[i]],N), aes(x = reorder(term, -count), y = count)) + 
+        geom_bar(stat = "identity", fill = colorbar) + 
+        ggtitle(paste(name)) + 
+        xlab(name) + ylab("Frequency") + 
+        theme(axis.text.x = element_text(angle = 90, hjust = 1))
+}
+```
+Now we can see plots for Unigrams:
+```{r}
+WCloud(ObservationData, 1)
+```
+```{r}
+plot.Grams(x = ObservationData, i = 1, name = "Unigrams", N = 30, colorbar = "green")
+```
+for Bigrams:
+```{r}
+WCloud(ObservationData, 2)
+```
+```{r}
+plot.Grams(x = ObservationData, i = 2, name = "Bigrams", N = 30, colorbar = "yellow")
+```
+and for Trigrams:
+```{r, warning=FALSE}
+WCloud(ObservationData, 3)
+```
+
+```{r}
+plot.Grams(x = ObservationData, i = 3, name = "Trigrams", N = 30, colorbar = "red")
+```
+
+### Findings and next steps
+Next is to plan for Creating Prediction Algorithm and Shiny Application
+
+To train the prediction model:
+
+1. Divide data into training, validation and test data.
+2. Looking at the unigram frequencies, there are a lot of word overlap between the most frequent words in these 3 files.As next step to this, I need to perform more data cleaning to remove words such as “the”, “of the” and so on.
+3. Build at least 2 predictive models. (https://cran.r-project.org/web/packages/sbo/vignettes/sbo.html it will be one of them)
+4. Assess the accuracy and efficiency of work.
+5. Try increasing or decreasing the dimension samples (Collect 10% random data from each file into 1 database or 0.5% or 0.1%)
+6. Repeat the process of number 4.
+7. Compare results.
+8. Choose the best option
+9. Create Shiny Application
+
+
