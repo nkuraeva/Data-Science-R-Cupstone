@@ -1,0 +1,92 @@
+---
+title: "Modeling2"
+author: "Natalia Kuraeva"
+date: "9/16/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## RCreating n-grams model
+
+
+http://amunategui.github.io/speak-like-a-doctor/
+
+```{r}
+library(ngram)
+
+N2 <- ngram(model.data, n=2)
+Trim <- function( x ) {
+        # http://stackoverflow.com/questions/2261079/how-to-trim-leading-and-trailing-whitespace-in-r
+        gsub("(^[[:space:]]+|[[:space:]]+$)", "", x)
+}
+ 
+
+Get_Ngrams <- function(sentence_splits, ngram_size=2) {
+        ngrams <- c()
+        for (sentence in sentence_splits) {
+                sentence <- Trim(sentence)
+                if ((nchar(sentence) > 0) && (sapply(gregexpr("\\W+", sentence), length) >= ngram_size)) {
+                        ngs <- ngram(sentence , n=ngram_size)
+                        ngrams <- c(ngrams, get.ngrams(ngs))
+                }
+        }
+        return (ngrams)
+}
+
+n2 <- Get_Ngrams(as, ngram_size=2)
+n3 <- Get_Ngrams(as, ngram_size=3)
+n4 <- Get_Ngrams(as, ngram_size=4)
+n5 <- Get_Ngrams(as, ngram_size=5)
+
+# consolidate all n-gram vectors into one
+n_all <- c(n2, n3, n4, n5)
+
+# save the n-grams in the same folder as your shiny code
+write.csv(n_all, 'project_ngrams.csv', row.names=FALSE)
+
+head(n_all)
+length(n_all)
+```
+
+
+```{r}
+# notice the trailing space at end to avoid picking last word
+word <- 'playing '
+
+matches <- c()
+for (sentence in n_all) {
+        # find exact match with double backslash and escape
+        if (grepl(paste0('\\<',word), sentence)) {
+                matches <- c(matches, sentence)
+        }
+}
+
+# find highest probability word
+precision_match <- c()
+for (a_match in matches) {
+        # how many spaces in from of search word
+        precision_match <- c(precision_match,nchar(strsplit(x = a_match, split = word)[[1]][[1]]))
+}
+
+# use highest number and a random of highest for multiples
+best_matched_sentence <- sample(matches[precision_match == max(precision_match)],size = 1)
+
+print(best_matched_sentence)
+# [1] "ingredientsCheesecloth, Its ridiculous playing kind"
+
+# split the best matching sentence by the search word
+best_match <- strsplit(x = best_matched_sentence, split = word)[[1]]
+# split second part by spaces and pick first word
+best_match <-  strsplit(x = best_match[[2]], split = " ")[[1]]
+best_match <- best_match[[1]]
+
+print(best_match)
+#[1] "kind"
+
+
+```
+
+After testing, this model turned out to be extremely slow and ineffective compared to stupid back-off model

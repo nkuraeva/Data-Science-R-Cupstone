@@ -1,0 +1,57 @@
+---
+title: "Modeling"
+author: "Natalia Kuraeva"
+date: "9/14/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Creating training and test dataset for future models with 5 % of provided data
+
+```{r}
+# File path
+file.blogs <- "en_US/en_US.blogs.txt" # blog.txt file
+file.twitter <- "en_US/en_US.twitter.txt" # twitter.txt file
+file.news <- "en_US/en_US.news.txt" # news.txt file
+
+# read files
+connect <- file(file.blogs, open="rb")
+blogs <- readLines(connect, encoding="UTF-8"); close(connect)
+connect <- file(file.twitter, open="rb")
+twitter <- readLines(connect, encoding="UTF-8"); close(connect)
+connect <- file(file.news, open="rb")
+news <- readLines(connect, encoding="UTF-8"); close(connect)
+rm(connect)
+
+set.seed(123) # Since I am going to use the shuffle feature, I am setting the seed for future reproducibility.
+# Sampling (used 5% of provided data)
+sampleBlogs <- blogs[sample(1:length(blogs), 0.05*length(blogs), replace=FALSE)]
+sampleNews <- news[sample(1:length(news), 0.05*length(news), replace=FALSE)]
+sampleTwitter <- twitter[sample(1:length(twitter), 0.05*length(twitter), replace=FALSE)]
+
+```
+```{r}
+library(tm)
+# Cleaning
+sampleBlogs <- iconv(sampleBlogs, "UTF-8", "ASCII", sub="")
+sampleNews <- iconv(sampleNews, "UTF-8", "ASCII", sub="")
+sampleTwitter <- iconv(sampleTwitter, "UTF-8", "ASCII", sub="")
+data.sample <- c(sampleBlogs,sampleNews,sampleTwitter)
+mt.data <- removeNumbers(data.sample)
+mt.data <- removePunctuation(mt.data)
+mt.data <- removeWords(mt.data, stopwords("en"))
+mt.data <- stripWhitespace(mt.data)
+length(mt.data)
+
+#Sort by training and test dataset 
+
+dt = sort(sample(length(mt.data), length(mt.data)*.8))
+model.data <- mt.data[dt]
+test.data <- mt.data[-dt]
+
+```
+
+

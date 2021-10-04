@@ -1,0 +1,83 @@
+---
+title: "Stupid back off"
+author: "Natalia Kuraeva"
+date: "9/16/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Building prediction model using sbo library and 5% of data
+My first step was text prediction via N-gram Stupid Back-off models with sbo library (https://cran.r-project.org/web/packages/sbo/vignettes/sbo.html).
+
+```{r}
+library(sbo)
+
+#modeling stupid back off
+t <- sbo_predtable(object = model.data, # preloaded example dataset
+                   N = 3, # Train a 3-gram model
+                   dict = target ~ 0.75, # cover 75% of training corpus
+                   .preprocess = sbo::preprocess, # Preprocessing transformation 
+                   EOS = ".?!:;", # End-Of-Sentence tokens
+                   lambda = 0.4, # Back-off penalization in SBO algorithm
+                   L = 3L, # Number of predictions for input
+                   filtered = "<UNK>" # Exclude the <UNK> token from predictions
+                   )
+#From t, one can rapidly recover the corresponding text predictor, using sbo_predictor()
+p <- sbo_predictor(t) 
+saveRDS(t, "t.rds")
+
+
+
+# ... and, in another session:
+#readRDS("t.rds")
+
+
+summary(p)
+
+```
+## k-gram tokenization
+```{r}
+f <- kgram_freqs(corpus = model.data, 
+                 N = 3, 
+                 dict = target ~ 0.75,
+                 .preprocess = sbo::preprocess,
+                 EOS = ".?!:;"
+                 )
+predict(f, 'love of my')
+```
+## Using model for prediction
+```{r}
+#using our model
+predict(p, 'love of my')
+```
+## Estimating of model
+```{r}
+evaluation <- eval_sbo_predictor(p, test = test.data)
+library(dplyr)
+e1 <- evaluation %>% summarise(accuracy = sum(correct)/n(), 
+                   uncertainty = sqrt(accuracy * (1 - accuracy) / n())
+                   )
+
+e2 <- evaluation %>% # Accuracy for in-sentence predictions
+        filter(true != "<EOS>") %>%
+        summarise(accuracy = sum(correct) / n(),
+                  uncertainty = sqrt(accuracy * (1 - accuracy) / n())
+                  )
+
+
+```
+The extra information contained in f comes at a price. In fact, the advantage provided by sbo_predictor/sbo_predtable objects for simple text prediction is two-fold:
+
+1. Memory compression:
+```{r}
+size_in_MB <- function(x) format(utils::object.size(x), units = "MB")
+sapply(list(sbo_predtable = t, kgram_freqs = f), size_in_MB)
+```
+2. Fast query:
+```{r}
+chrono_predict <- function(x) system.time(predict(x, "love of my"), gcFirst = TRUE)
+lapply(list(sbo_predictor = p, kgram_freqs = f), chrono_predict)
+```
