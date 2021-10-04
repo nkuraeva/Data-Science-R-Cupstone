@@ -1,0 +1,50 @@
+NextWordPredictor
+========================================================
+author: Natalia Kuraeva
+date: 04.10.2021
+autosize: true
+
+What is it
+========================================================
+Next Word Predictor is a shiny app, created like the Capstone Project for Data Science 
+Specialization from John Hopkins University.
+The app can be found in the url: https://kuraeva.shinyapps.io/NextWordPredictorV/
+Usage is very simple
+- Enter a series of words in the search box to predict the next word
+- Push the Button "Predict next word..."
+You can see 3 possible outcome:
+- a word, which the algorithm considered the most probable continuation of the chain of words;
+- the sign "i", which means that you did not enter enough data (did not enter any data at all) for the system to process the request correctly;
+- the "EOS" sign, which means that the line continuation (according to the analyzed data) should be a punctuation mark, not a word.
+
+
+Getting and Cleaning Data
+========================================================
+Data is gathered from: https://d396qusza40orc.cloudfront.net/dsscapstone/dataset/Coursera-SwiftKey.zip
+    - Consists of sample blogs, tweets, and news articles in English.
+    - Approximately 40 million words in over 2 million lines.
+
+First of all, several libraries for working with texts were tried (tm, NLP, ngram, corpus, rWeka, sbo), and the fastest was chosen (sbo).
+At the next stage, the analysis of the model's operation was made depending on the sample size and the optimal ratio of accuracy - speed of operation was established.
+
+Building text predictors with sbo
+========================================================
+Given the training corpus, the typical workflow for building a text-predictor consists of the following steps:
+- Preprocessing. Apply some transformations to the training corpus before n-gram extraction.
+- Sentence tokenization. Split the training corpus into sentences.
+- Extract n-gram frequencies. These are the building blocks for any n-gram language model.
+- Train a text predictor. Build a prediction function f, which takes some text input and returns as output a next-word prediction (or more than one, ordered by decreasing probability).
+- Also, implicit in the previous steps is the choice of a model dictionary, which can be done a priori, or during the training process.
+
+What next
+========================================================
+### Where can it be used. This algorithm, with some modifications, can be used, for example:
+- As part of a site or database search engine,
+- As an aid to people with communication disabilities,
+- As part of a foreign language learning app,
+- As part of recommended systems.
+
+### How you can try to improve system performance:
+- Change the ratio of data used for modeling (for example, 5% from the tweet file, 10% from the blog file and 20% from the news file;
+- Change the number of words in n-gram (for example, 4 or 6 or more) and look at the indicators of the accuracy of predictions
+
